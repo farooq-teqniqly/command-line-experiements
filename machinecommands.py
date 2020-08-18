@@ -1,4 +1,6 @@
 import abc
+from typing import Any, List
+
 import click
 import json
 import os
@@ -6,12 +8,18 @@ import platform
 
 
 class CliCommands(click.MultiCommand, abc.ABC):
+    def list_commands(self, ctx) -> List[Any]:
+        return self.on_list_commands(ctx)
+
+    def get_command(self, ctx, cmd_name):
+        return self.on_get_command(ctx, cmd_name)
+
     @abc.abstractmethod
-    def list_commands(self, ctx):
+    def on_list_commands(self, ctx):
         pass
 
     @abc.abstractmethod
-    def get_command(self, ctx, cmd_name):
+    def on_get_command(self, ctx, cmd_name):
         pass
 
 
@@ -21,11 +29,8 @@ class CliCommandHandler(click.Command, abc.ABC):
             name=name, params=[click.Option(["-o", "--output"])]
         )
 
-    @abc.abstractmethod
-    def invoke(self, ctx):
-        pass
-
-    def _on_output(self, ctx, output):
+    @classmethod
+    def _on_output(cls, ctx, output):
         if ctx.params["output"]:
             output_type = str(ctx.params["output"])
 
@@ -40,22 +45,28 @@ class CliCommandHandler(click.Command, abc.ABC):
         else:
             click.echo("\t".join(str(v) for v in output.values()))
 
+    @abc.abstractmethod
+    def on_invoke(self, ctx) -> Any:
+        pass
+
+    def invoke(self, ctx):
+        output = self.on_invoke(ctx)
+        self._on_output(ctx, output)
+
 
 class MachineCommands(CliCommands):
-    def list_commands(self, ctx):
+    def on_list_commands(self, ctx):
         return ["show"]
 
-    def get_command(self, ctx, cmd_name):
+    def on_get_command(self, ctx, cmd_name):
         if cmd_name == "show":
             return MachineCommandHandler(name="show")
 
 
 class MachineCommandHandler(CliCommandHandler):
-    def invoke(self, ctx):
-        output = dict(
+    def on_invoke(self, ctx) -> Any:
+        return dict(
             name=platform.node(),
             processor=platform.processor(),
             cpu_count=os.cpu_count(),
         )
-
-        super(MachineCommandHandler, self)._on_output(ctx, output)
